@@ -23,7 +23,7 @@ movement.
 
 - [x] There's always exactly one trophy at any given moment.
 
-- [ ] When the snake eats the trophy, its length is increased by the corresponding number of
+- [x] When the snake eats the trophy, its length is increased by the corresponding number of
 characters.
 
 - [ ] A trophy expires after a random interval from 1 to 9 seconds.
