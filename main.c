@@ -6,7 +6,8 @@
 #include <sys/ioctl.h>
 #include <ncurses.h>
 //tickrate
-int TICK = 200000;
+int TICK = 100000;
+int TICKINC = 1000;
 //arrows 
 #define DOWN  1
 #define UP    2
@@ -63,18 +64,21 @@ void dirChange();
 void startDirection(int * direction);
 
 //declare global struct
-struct snake_peice {
-	struct snake_peice * next;
+struct snake_piece {
+	struct snake_piece * next;
 	int x;
 	int y;
 };
-typedef struct snake_peice SNAKE;
+typedef struct snake_piece SNAKE;
 
 static SNAKE * snake;
 static int direction;
 static int rows, cols;
 int score = 0; // this is the main score
 int printednumber;
+//ZZZZZZZZZZZZZZ
+int piecesToAdd = 0;
+//UUUUUUUUUUUUU
 
 WINDOW * mainwin;
 int oldsettings;
@@ -245,49 +249,41 @@ void snakeMove(void){
 
 	//check collision switch statement
 	move(y, x);
-	switch( (ch = inch()) ){
-		case EMPTY:
-			score += MOVIN;
-
+	ch = inch();
+	addch(SNAKEPEICE);
+	if(ch==EMPTY||ch==trophy)
+	{
+		score += MOVIN;
+		if(ch==trophy)
+		{
+			piecesToAdd += trophy - '0';
+			TICK-=TICKINC*(trophy - '0');
+			spawnFood();
+               		SetTime();
+               		score += EATIN;
+		}
+		if(piecesToAdd==0)
+		{
 			temp = snake->next;
 			move(snake->y, snake->x);
 			addch(EMPTY);
 			free(snake);
 			snake = temp;
-
-		case ZERO:
-		case ONE:
-		case TWO:
-		case THREE:
-		case FOUR:
-		case FIVE:
-		case SIX:
-		case SEVEN:
-		case EIGHT:
-		case NINE:
-			// add new snake peice to end
-			move(y, x);
-			addch(SNAKEPEICE);
-
-			if (ch == trophy){
-				
-				spawnFood();
-				TICK-=10000;
-				SetTime();
-				score += EATIN;
-			}
-
-			refresh();
-			break;
-
-		case SNAKEPEICE:
-			quitOut(SELF);
-
-		default:
-		quitOut(WALL);
-
+		}
+		else
+		{
+			piecesToAdd--;
+		}
+		refresh();
 	}
-
+	else if(ch==SNAKEPEICE)
+	{
+		quitOut(SELF);
+	}
+	else
+	{
+		quitOut(WALL);
+	}
 }
 
 void spawnFood(void){
