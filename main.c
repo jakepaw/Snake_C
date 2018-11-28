@@ -18,7 +18,7 @@ but added names to those of major progess to completion.
 #include <sys/ioctl.h>
 #include <ncurses.h>
 //tickrate
-int TICK = 100000;
+int TICK = 199000;
 int TICKINC = 1000;
 // direction that I talk about at the end, it is easier to define a name so you know direction by name not numbers
 #define DOWN  1
