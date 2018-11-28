@@ -100,6 +100,17 @@ int slength;
 WINDOW * mainwin;
 int oldsettings;
 
+/*
+Written by Jaocb Pawlak
+This is our main: here we are able to do many preparations before we start the code, as well as where we can handle diretional
+changes in a loop that is infinite until an alarm is handled by user quitting, error, or by a game rule.
+We set the seed for the random number generator using the srand and time functions, and then set the timer and the signal handler
+initializing curses is a curial part of the program, and we handle if there is an error.  We then set noecho() so commands will
+not be echoed out to the screen. We initialize our window (mainwin) and set keypad to TRUE. Another important part is grabbing
+the current settings before we change anything for good, this is boolean 0-1 (1 for setting back to old). We then enter the game
+by choosing a direction, creating the snake (intializing and allocating memory, and then draw the first part to the screen).
+Our while llook then runs which is dependent on arrow key switching and keys being hit to quit.
+*/
 int main(void){
 	
 	// rng seed, timer set, register handlers
