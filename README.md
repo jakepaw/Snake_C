@@ -26,9 +26,9 @@ movement.
 - [x] When the snake eats the trophy, its length is increased by the corresponding number of
 characters.
 
-- [ ] A trophy expires after a random interval from 1 to 9 seconds.
+- [x] A trophy expires after a random interval from 1 to 9 seconds.
 
-- [ ] A new trophy is shown at a random location on the screen after the previous one has either
+- [x] A new trophy is shown at a random location on the screen after the previous one has either
 expired or is eaten by the snake.
 
 - [x] The snake's speed is increased in a linear proportion with its length.
@@ -41,5 +41,5 @@ expired or is eaten by the snake.
 - [x] The user wins the game if the snake's length grows to the length equal to half the
 perimeter of the border.
 
-- [ ] The project executable must run from any directory (i.e., the program should run, no
+- [x] The project executable must run from any directory (i.e., the program should run, no
 matter what your directory is)
