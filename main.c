@@ -1,13 +1,10 @@
 /*
 Snake Game C implementation
 Authors: Jacob Pawlak, Zachary Urso
-
 This project was laid out and designed from a basic format. Using an agile approach to tackle small tasks for the larger result
 we were able to divide and conquer the tasks at hand into several for each developer.
-
 Below you will be able to go through the code and see the functions in which we both implemented. Most were written together, 
 but added names to those of major progess to completion.
-
 */
 
 #include <stdlib.h>
@@ -18,8 +15,8 @@ but added names to those of major progess to completion.
 #include <sys/ioctl.h>
 #include <ncurses.h>
 //tickrate
-int TICK = 199000;
-int TICKINC = 1000;
+int TICK = 200000000;
+int TICKINC = 5000000;
 // direction that I talk about at the end, it is easier to define a name so you know direction by name not numbers
 #define DOWN  1
 #define UP    2
@@ -49,6 +46,7 @@ int TICKINC = 1000;
 #define EIGHT      '8'
 #define NINE       '9'
 
+#define FOODTIMER 9
 /*
 Here we are giving prototypes of our functions
 */
@@ -74,11 +72,15 @@ void quitOut( int reason );
 // gets the current terminal size (this is used for random fruit genorator)
 void GetTermSize(int * rows, int * cols);
 // starts the sig handler
-void handler();
+void handler(int signum, siginfo_t *si, void *uc);
 // changes direction on key press
 void dirChange();
 // start direction is chosen at random
 void startDirection(int * direction);
+
+void setTrophyTime();
+void changeTrophy();
+void createTimers();
 
 // declare global struct
 struct snake_piece {
@@ -96,6 +98,9 @@ int score = 0; // this is the main score
 int printednumber;
 int piecesToAdd = SNAKELENGTH-1;
 int slength;
+int trophy_x, trophy_y;
+timer_t moveTimerID;
+timer_t trophyTimerID;
 
 WINDOW * mainwin;
 int oldsettings;
@@ -115,9 +120,7 @@ int main(void){
 	
 	// rng seed, timer set, register handlers
 	srand( ( unsigned ) time(NULL)) ;
-	SetTime();
 	SetSig();
-
 	// Curses will be set here.. error out with perror if problem occurs
 	if ( (mainwin = initscr()) == NULL){
 		perror("Could not set ncurses");
@@ -132,7 +135,9 @@ int main(void){
 	startDirection(&direction);
 	snakeCreate();
 	snakeDraw();
-
+	createTimers();
+	SetTime();
+	setTrophyTime();
 	while (1){
 		int arrow = getch();
 
@@ -160,43 +165,79 @@ int main(void){
 
 	return EXIT_SUCCESS; // doesn't actually ever get here because it works
 }
-/*
-Written by Jacob Pawlak
-This function sets the timer 'TICK' using setitimer (which is called to 'update') TICK will be the speed at which the
-snake is travelling. This is set global so we do not have to pass it all around, and then we are able to update in a linear
-way when trophies are eaten
-*/
+//Written by Zachary Urso
 void SetTime(void){
-	struct itimerval it;
 
-	timerclear(&it.it_interval);
-	timerclear(&it.it_value);
+	struct itimerspec its;
 
-	//set time
+	its.it_interval.tv_nsec = 0;
+	its.it_value.tv_nsec    = 0;
 
-	it.it_interval.tv_usec = TICK;
-	it.it_value.tv_usec    = TICK;
-	setitimer(ITIMER_REAL, &it, NULL);
+	its.it_interval.tv_sec = 0;
+        its.it_value.tv_sec    = 0;
+
+	timer_settime(moveTimerID, 0, &its, NULL);
+
+	its.it_interval.tv_nsec = TICK;
+        its.it_value.tv_nsec    = TICK;
+	timer_settime(moveTimerID, 0, &its, NULL);
+}
+//Written by Zachary Urso
+void changeTrophy()
+{
+	move(trophy_y, trophy_x);
+	if(inch()!=SNAKEPEICE)
+	{
+		addch(EMPTY);
+	}
+	spawnFood();
+	setTrophyTime();
+}
+//Written by Zachary Urso
+void createTimers()
+{
+	struct sigevent moveSE;
+        moveSE.sigev_notify = SIGEV_SIGNAL;
+        moveSE.sigev_signo = SIGRTMIN;
+        moveSE.sigev_value.sival_ptr = &moveTimerID;
+
+        timer_create(CLOCK_REALTIME, &moveSE, &moveTimerID);
+
+	struct sigevent trophySE;
+        trophySE.sigev_notify = SIGEV_SIGNAL;
+        trophySE.sigev_signo = SIGRTMIN;
+        trophySE.sigev_value.sival_ptr = &trophyTimerID;
+
+	timer_create(CLOCK_REALTIME, &trophySE, &trophyTimerID);
+}
+//Written by Zachary Urso
+void setTrophyTime()
+{
+	struct itimerspec its;
+
+	int secs = (rand() % FOODTIMER)+1;
+	its.it_interval.tv_sec = 0;
+        its.it_value.tv_sec    = 0;
+
+	its.it_interval.tv_nsec = 0;
+        its.it_value.tv_nsec    = 0;
+
+        timer_settime(trophyTimerID, 0, &its, NULL);
+
+	its.it_value.tv_sec    = secs;
+	timer_settime(trophyTimerID, 0, &its, NULL);
 }
 
-/*
-Written by Jacob Pawlak
-This sets the sig handlers for the program, another function near end shows use. ALRM is user input to move snake and others
-are built for errors.
-*/
+//Written by Zachary Urso
 void SetSig(void){
 	struct sigaction sa;
 
-	sa.sa_handler = handler;
-	sa.sa_flags = 0;
 	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_SIGINFO;
+	sa.sa_sigaction = handler;
 
-	sigaction(SIGTERM,  &sa, NULL);
-	sigaction(SIGINT,   &sa, NULL);
-	sigaction(SIGALRM, &sa, NULL);
+	sigaction(SIGRTMIN, &sa, NULL);
 
-	sa.sa_handler = SIG_IGN;
-	sigaction(SIGTSTP, &sa, NULL);
 }
 
 //written by Zachary Urso
@@ -231,10 +272,12 @@ void snakeDraw(void){
 
 //Written by Zachary Urso
 void snakeMove(void){
+	//pointer to hold tail, and other variables declared for new x,y and retrieved ch from screen
 	SNAKE * temp = tail;
 	int x, y, ch;
+	//trophy gotten from printednumber
 	char trophy = printednumber + '0';
-	//create new snake peice to add to it
+	//create new snake piece to add to it
 
 	if ((temp->next = malloc(sizeof(SNAKE))) == NULL)
 		ErrorOut("Could not allocate mem while inside of snakeMove() ");
@@ -259,28 +302,35 @@ void snakeMove(void){
 			break;
 	}
 
-	//fill the new tail peice
+	//fill the new tail piece
 	temp       = temp->next;
 	temp->next = NULL;
 	temp->x    = x;
 	temp->y    = y;
 	tail = temp;
-	//check collision switch statement
+	//ch gotten from locaiton to move to.
 	move(y, x);
 	ch = inch();
 	addch(SNAKEPEICE);
+	//checks for collision with various things.
+	//if snake can move without hitting itself or wall, then check if trophy is in space.
 	if(ch==EMPTY||ch==trophy)
 	{	
 		score += MOVIN;
+		//if trophy was eaten, add to snake and spawn new food.
 		if(ch==trophy)
 		{
+			//trophy added to pieces counter and length
 			piecesToAdd += trophy - '0';
 			slength += trophy - '0';
+			//check if won
 			if(slength >= (rows+cols))
 			{
 				quitOut(WIN);
 			}
+			//snake speed is increased in proportion to trophy size
 			TICK-=TICKINC*(trophy - '0');
+			setTrophyTime();
 			spawnFood();
                		SetTime();
                		score += EATIN;
@@ -322,46 +372,38 @@ void spawnFood(void){
 		y = rand() % (rows - 3) + 1;
 		move(y, x);
 	} while ( inch() != EMPTY ); 
-	
+	trophy_x = x;
+	trophy_y = y;
 	printednumber = (rand() % 9)+1;
 	addch(printednumber+'0');
 }
 /*
 Written by Jacob Pawlak
-
 When the user provides input this function is called, it provides the direction of which the snake will move in using x
 and y coordinates and the linked list. This function also quits out when snake hits itself. at the ende direction is set to d
 */
 void dirChange(int d){
 	SNAKE * temp = snake;
 
-	//go to end of mr.snakey
-	while ( temp->next != NULL )
-		temp = temp->next;
-
 	switch(d){
 		case LEFT:
 			if (direction == RIGHT )
 				quitOut(SELF); // if hit itself reverse
-			move(temp->y, temp->x - 1);
 			break;
 
 		case RIGHT:
 			if (direction == LEFT )
 				quitOut(SELF); // if hit itself reverse
-			move(temp->y, temp->x + 1);
 			break;
 
 		case UP:
 			if (direction == DOWN )
 				quitOut(SELF);// if hit itself reverse
-			move(temp->y - 1, temp->x);
 			break;
 
 		case DOWN:
 			if(direction == UP)
 				quitOut(SELF);// if hit itself reverse
-			move(temp->y + 1, temp->x);
 			break;
 	}
 	direction = d;
@@ -460,26 +502,19 @@ void GetTermSize(int *rows, int *cols){
 /*
 Written by Jacob Pawlak
 Here is the other part of the handler that I spoke of before. We use the previous function to name, but this is what will happen
-when each alarm is going off. If ALRM then we call snakemove() and return, if we hit TERM or INT then we close out the game
+when each alarm is going off. If timerID matches moverTimer, then snakeMove is called. If timerID matches trophyTimer, then changeTrophy is called.
 */
-void handler(int signum){
+void handler(int signum, siginfo_t *sigInfoP, void *uc){
 
-	switch( signum ){
-		case SIGALRM:
-			//gets from the timer (tickrate)
-			snakeMove();
-			return;
-
-		case SIGTERM:
-		case SIGINT:
-
-			//do some cleanup... bc we're nice hehe
-			delwin(mainwin);
-			curs_set(oldsettings);
-			endwin();
-			refresh();
-			releaseSnake(); // give back allocated snake mem
-			exit(EXIT_SUCCESS); 
+	timer_t *timerID;
+	timerID = sigInfoP->si_value.sival_ptr;
+	if(timerID == &trophyTimerID)
+	{
+		changeTrophy();
+	}
+	else if(timerID == &moveTimerID)
+	{
+		snakeMove();
 	}
 }
 /*
